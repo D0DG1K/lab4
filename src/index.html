@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Лабораторная работа №4</title>
+</head>
+<body>
+<h1>Лабораторная работа №4</h1>
+
+<p><strong>ФИО:</strong> Горин А.Ю. и Чепиков А.С.</p>
+<p><strong>Группа:</strong> 3105-об</p>
+<p><strong>Вариант:</strong> 6</p>
+
+<p>Текущая дата и время: <span id="clock"></span></p>
+
+<p><a href="main.html">Перейти к проверке точек</a></p>
+
+<script>
+    function updateClock() {
+        var now = new Date();
+        document.getElementById('clock').innerHTML = now.toLocaleString('ru-RU');
+    }
+    updateClock();
+    setInterval(updateClock, 10000);
+</script>
+</body>
+</html>

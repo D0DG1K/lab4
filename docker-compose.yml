@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # База данных PostgreSQL
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: web_lab
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Твое Java-приложение
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      # Эти переменные можно использовать в коде для гибкости
+      DB_URL: jdbc:postgresql://db:5432/web_lab
+      DB_USER: admin
+      DB_PASS: password
+
+volumes:
+  postgres_data:

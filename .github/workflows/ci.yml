@@ -1,0 +1,53 @@
+name: CI Pipeline
+
+# Пайплайн запускается при пуше в master или develop
+on:
+  push:
+    branches: [ "master", "develop" ]
+  pull_request:
+    branches: [ "master", "develop" ]
+
+# Разрешения для работы с GitHub Container Registry (GHCR)
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Клонируем исходный код репозитория (Check-out)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Подготавливаем окружение Java 11 (Setup Java)
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: maven
+
+      # 3. Сборка проекта и запуск тестов (Maven Build)
+      - name: Build with Maven and Run Tests
+        run: mvn clean verify
+
+      # 4. Авторизация в GitHub Container Registry (GHCR)
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 5. Сборка Docker-образа и отправка его в репозиторий (Docker Build & Push)
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # Название образа будет в формате: ghcr.io/твой-логин-гитхаба/lab4:latest
+          tags: |
+            ghcr.io/${{ github.repository }}:latest

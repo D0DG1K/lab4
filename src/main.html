@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Проверка попадания точки</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        table, th, td { border: 1px solid #ccc; border-collapse: collapse; padding: 8px; }
+        canvas { border: 1px solid black; cursor: pointer; margin: 10px 0; }
+        .hit { color: green; }
+        .miss { color: red; }
+        .stats { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+<h1>Проверка попадания точки в область</h1>
+
+<p><strong>ФИО:</strong> Горин А.Ю. и Чепиков А.С.</p>
+<p><strong>Группа:</strong> 3105-об</p>
+<p><strong>Вариант:</strong> 19</p>
+
+<hr>
+
+<div class="stats">
+    <h3>Статистика </h3>
+    <p>Всего точек: <strong id="totalPoints">0</strong></p>
+    <p>Попаданий: <strong id="hitPoints">0</strong></p>
+    <p>Промахов: <strong id="missPoints">0</strong></p>
+    <p>Процент промахов: <strong id="missPercentage">0</strong>%</p>
+    <p>Площадь фигуры: <strong id="area">0</strong> кв. ед.</p>
+    <p>Текущий радиус: <strong id="currentR">2.0</strong></p>
+</div>
+
+<hr>
+
+<h3>Ввод координат</h3>
+
+<label>X:</label>
+<select id="x">
+    <option value="-3">-3</option><option value="-2.5">-2.5</option>
+    <option value="-2">-2</option><option value="-1.5">-1.5</option>
+    <option value="-1">-1</option><option value="-0.5">-0.5</option>
+    <option value="0">0</option><option value="0.5">0.5</option>
+    <option value="1">1</option><option value="1.5">1.5</option>
+    <option value="2">2</option><option value="2.5">2.5</option>
+    <option value="3">3</option>
+</select>
+<br><br>
+
+<label>Y (-3..3):</label>
+<input type="number" id="y" step="0.1" min="-3" max="3" value="0">
+<br><br>
+
+<label>R (1..3, шаг 0.5):</label>
+<input type="range" id="r" min="1" max="3" step="0.5" value="2">
+<span id="rValue">2.0</span>
+<br><br>
+
+<button onclick="checkPoint()">Проверить</button>
+<button onclick="clearHistory()">Очистить историю</button>
+
+<hr>
+
+<h3>График (кликните для выбора точки)</h3>
+<canvas id="canvas" width="400" height="400"></canvas>
+
+<hr>
+
+<h3>История</h3>
+<table id="historyTable">
+    <thead><tr><th>X</th><th>Y</th><th>R</th><th>Результат</th><th>Время</th></tr></thead>
+    <tbody></tbody>
+</table>
+
+<hr>
+<p><a href="index.html">← На стартовую</a></p>
+
+<script>
+    let results = [];
+
+    function checkHit(x, y, r) {
+        if (x >= 0 && y >= 0) {
+            // I четверть: четверть круга радиуса R
+            return (x * x + y * y) <= r * r;
+        }
+        if (x <= 0 && y >= 0) {
+            // II четверть: прямоугольник от x=-R/2 до 0, от y=0 до R
+            return x >= -r/2 && y <= r;
+        }
+        if (x >= 0 && y <= 0) {
+            // IV четверть: треугольник (0,0), (R,0), (0,-R)
+            return y >= -x && x <= r;
+        }
+        // III четверть: пусто
+        return false;
+    }
+
+    async function checkPoint() {
+        let x = parseFloat(document.getElementById('x').value);
+        let y = parseFloat(document.getElementById('y').value);
+        let r = parseFloat(document.getElementById('r').value);
+
+        if (isNaN(y) || y < -3 || y > 3) {
+            alert('Y должен быть от -3 до 3');
+            return;
+        }
+
+        let hit = checkHit(x, y, r);
+
+        let time = new Date().toLocaleString('ru-RU');
+
+        results.unshift({
+            x: x,
+            y: y,
+            r: r,
+            hit: hit,
+            time: time
+        });
+
+        if (results.length > 20) results.pop();
+
+        updateTable();
+        drawGraph();
+        updateStats();
+    }
+
+    async function updateStats() {
+        try {
+            let response = await fetch('/api/stats');
+            let stats = await response.json();
+
+            document.getElementById('totalPoints').innerText = stats.totalPoints;
+            document.getElementById('hitPoints').innerText = stats.hitPoints;
+            document.getElementById('missPoints').innerText = stats.missPoints;
+            document.getElementById('missPercentage').innerText = stats.missPercentage.toFixed(2);
+            document.getElementById('area').innerText = stats.area.toFixed(4);
+            document.getElementById('currentR').innerText = stats.currentR;
+        } catch(e) {
+            console.error('Ошибка получения статистики:', e);
+        }
+    }
+
+    function updateTable() {
+        let tbody = document.querySelector('#historyTable tbody');
+        tbody.innerHTML = '';
+
+        for (let r of results) {
+            let row = tbody.insertRow();
+            row.insertCell(0).innerText = r.x;
+            row.insertCell(1).innerText = r.y;
+            row.insertCell(2).innerText = r.r;
+            row.insertCell(3).innerHTML = r.hit ? '<span class="hit">Попадание</span>' : '<span class="miss">Промах</span>';
+            row.insertCell(4).innerText = r.time;
+        }
+    }
+
+    function clearHistory() {
+        results = [];
+        updateTable();
+        drawGraph();
+    }
+
+    function drawGraph() {
+        let canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
+        let size = 400;
+        let center = size / 2;
+        let rVal = parseFloat(document.getElementById('r').value);
+        let scale = size / (2 * rVal);
+
+        ctx.clearRect(0, 0, size, size);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, size, size);
+
+        // Оси координат
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, center);
+        ctx.lineTo(size, center);
+        ctx.moveTo(center, 0);
+        ctx.lineTo(center, size);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(0, 100, 200, 0.5)';
+
+        // I четверть (x>0, y>0): четверть круга радиуса R
+        // В Canvas: x>center, y<center (верхний правый квадрант)
+        // Углы: от -π/2 (верх) до 0 (право)
+        ctx.beginPath();
+        ctx.arc(center, center, rVal * scale, -Math.PI / 2, 0);
+        ctx.lineTo(center, center);
+        ctx.fill();
+
+        // II четверть (x<0, y>0): прямоугольник от x=-R/2 до 0, от y=0 до R
+        // В Canvas: x<center, y<center (верхний левый квадрант)
+        ctx.fillRect(center - (rVal/2) * scale, center - rVal * scale, (rVal/2) * scale, rVal * scale);
+
+        // IV четверть (x>0, y<0): треугольник (0,0), (R,0), (0,-R)
+        // В Canvas: x>center, y>center (нижний правый квадрант)
+        ctx.beginPath();
+        ctx.moveTo(center, center);
+        ctx.lineTo(center + rVal * scale, center);
+        ctx.lineTo(center, center + rVal * scale);
+        ctx.closePath();
+        ctx.fill();
+
+        // Точки из истории
+        for (let p of results) {
+            if (Math.abs(p.r - rVal) > 0.1) continue;
+            let x = center + p.x * scale;
+            let y = center - p.y * scale;
+
+            ctx.beginPath();
+            ctx.fillStyle = p.hit ? '#00aa00' : '#aa0000';
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    }
+
+    function canvasClick(event) {
+        let canvas = document.getElementById('canvas');
+        let rect = canvas.getBoundingClientRect();
+        let rVal = parseFloat(document.getElementById('r').value);
+        let scale = 400 / (2 * rVal);
+
+        let mouseX = event.clientX - rect.left;
+        let mouseY = event.clientY - rect.top;
+
+        let pointX = (mouseX - 200) / scale;
+        let pointY = (200 - mouseY) / scale;
+        pointX = Math.round(pointX * 100) / 100;
+        pointY = Math.round(pointY * 100) / 100;
+        pointY = Math.min(3, Math.max(-3, pointY));
+
+        let xValues = [-3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3];
+        let closest = xValues.reduce((a,b) => Math.abs(b - pointX) < Math.abs(a - pointX) ? b : a);
+
+        document.getElementById('x').value = closest;
+        document.getElementById('y').value = pointY;
+        checkPoint();
+    }
+
+    document.getElementById('r').addEventListener('input', function() {
+        let val = parseFloat(this.value);
+        document.getElementById('rValue').innerText = val.toFixed(1);
+        drawGraph();
+        updateStats();
+    });
+
+    document.getElementById('canvas').addEventListener('click', canvasClick);
+
+    drawGraph();
+    updateStats();
+    setInterval(updateStats, 2000);
+</script>
+</body>
+</html>
